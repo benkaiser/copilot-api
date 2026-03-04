@@ -43,15 +43,49 @@ export function translateToOpenAI(
     user: payload.metadata?.user_id,
     tools: translateAnthropicToolsToOpenAI(payload.tools),
     tool_choice: translateAnthropicToolChoiceToOpenAI(payload.tool_choice),
+    reasoning_effort:
+      payload.output_config?.effort
+      ?? translateThinkingToReasoningEffort(payload.thinking),
   }
 }
 
+function translateThinkingToReasoningEffort(
+  thinking: AnthropicMessagesPayload["thinking"],
+): "low" | "medium" | "high" | undefined {
+  if (!thinking) {
+    return undefined
+  }
+  const budget = thinking.budget_tokens
+  if (!budget) {
+    return "medium"
+  }
+  if (budget <= 4000) {
+    return "low"
+  }
+  if (budget <= 16000) {
+    return "medium"
+  }
+  return "high"
+}
+
 function translateModelName(model: string): string {
-  // Subagent requests use a specific model number which Copilot doesn't support
-  if (model.startsWith("claude-sonnet-4-")) {
-    return model.replace(/^claude-sonnet-4-.*/, "claude-sonnet-4")
-  } else if (model.startsWith("claude-opus-")) {
-    return model.replace(/^claude-opus-4-.*/, "claude-opus-4")
+  // Map hyphenated version numbers to dot notation and preserve suffixes like -1m
+  // e.g. claude-opus-4-6-1m → claude-opus-4.6-1m
+  //      claude-opus-4-6 → claude-opus-4.6
+  //      claude-opus-4-20250514 → claude-opus-4
+  //      claude-sonnet-4-1-1m → claude-sonnet-4.1-1m
+  //      claude-sonnet-4-20250514 → claude-sonnet-4
+  for (const base of ["claude-sonnet-4", "claude-opus-4"]) {
+    if (model.startsWith(`${base}-`)) {
+      const suffix = model.slice(`${base}-`.length)
+      // Short version number (1-2 digits) → dot notation, preserving any trailing suffix (e.g. -1m)
+      // Date suffix (8+ digits) → strip entirely
+      const versionMatch = suffix.match(/^(\d{1,2})(.*)$/)
+      if (versionMatch) {
+        return `${base}.${versionMatch[1]}${versionMatch[2]}`
+      }
+      return base
+    }
   }
   return model
 }

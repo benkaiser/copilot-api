@@ -26,6 +26,13 @@ export async function handleCompletion(c: Context) {
   await checkRateLimit(state)
 
   const anthropicPayload = await c.req.json<AnthropicMessagesPayload>()
+
+  // Detect context-1m beta flag and append -1m suffix to model name
+  const betaHeader = c.req.header("anthropic-beta") ?? ""
+  if (betaHeader.includes("context-1m")) {
+    anthropicPayload.model = `${anthropicPayload.model}-1m`
+  }
+
   consola.debug("Anthropic request payload:", JSON.stringify(anthropicPayload))
 
   const openAIPayload = translateToOpenAI(anthropicPayload)

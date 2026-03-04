@@ -148,6 +148,7 @@ export interface ChatCompletionsPayload {
     | { type: "function"; function: { name: string } }
     | null
   user?: string | null
+  reasoning_effort?: "low" | "medium" | "high" | null
 }
 
 export interface Tool {
