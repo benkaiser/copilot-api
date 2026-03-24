@@ -28,14 +28,21 @@ export async function handleCompletion(c: Context) {
   const anthropicPayload = await c.req.json<AnthropicMessagesPayload>()
 
   // Detect context-1m beta flag and append -1m suffix to model name
+  // Only append if the model doesn't already end with -1m (e.g. claude-opus-4.6-1m)
   const betaHeader = c.req.header("anthropic-beta") ?? ""
-  if (betaHeader.includes("context-1m")) {
+  if (
+    betaHeader.includes("context-1m")
+    && !anthropicPayload.model.endsWith("-1m")
+  ) {
     anthropicPayload.model = `${anthropicPayload.model}-1m`
   }
 
   consola.debug("Anthropic request payload:", JSON.stringify(anthropicPayload))
 
   const openAIPayload = translateToOpenAI(anthropicPayload)
+  consola.info(
+    `Model mapping: ${anthropicPayload.model} → ${openAIPayload.model}`,
+  )
   consola.debug(
     "Translated OpenAI request payload:",
     JSON.stringify(openAIPayload),

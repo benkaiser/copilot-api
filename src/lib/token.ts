@@ -28,6 +28,14 @@ export const setupCopilotToken = async () => {
   const refreshInterval = (refresh_in - 60) * 1000
   setInterval(async () => {
     consola.debug("Refreshing Copilot token")
+    await refreshCopilotTokenWithRetry()
+  }, refreshInterval)
+}
+
+const RETRY_DELAY_MS = 5000
+
+async function refreshCopilotTokenWithRetry(): Promise<void> {
+  while (true) {
     try {
       const { token } = await getCopilotToken()
       state.copilotToken = token
@@ -35,11 +43,13 @@ export const setupCopilotToken = async () => {
       if (state.showToken) {
         consola.info("Refreshed Copilot token:", token)
       }
+      return
     } catch (error) {
       consola.error("Failed to refresh Copilot token:", error)
-      throw error
+      consola.info(`Retrying in ${RETRY_DELAY_MS / 1000} seconds...`)
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS))
     }
-  }, refreshInterval)
+  }
 }
 
 interface SetupGitHubTokenOptions {
