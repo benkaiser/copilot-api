@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -e
+
+# Build if binary doesn't exist
+if [ ! -f ./target/release/copilot-api ]; then
+  echo "Binary not found, building first..."
+  ./build
+fi
+
+exec ./target/release/copilot-api start "$@"

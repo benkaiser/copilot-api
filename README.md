@@ -46,94 +46,43 @@ https://github.com/user-attachments/assets/7654b383-669d-4eb9-b23c-06d7aefee8c5
 
 ## Prerequisites
 
-- Bun (>= 1.2.x)
+- [Rust toolchain](https://rustup.rs/) (rustc/cargo)
 - GitHub account with Copilot subscription (individual, business, or enterprise)
 
-## Installation
+## Quick Start
 
-To install dependencies, run:
-
-```sh
-bun install
-```
-
-## Using with Docker
-
-Build image
+Build:
 
 ```sh
-docker build -t copilot-api .
+./build
 ```
 
-Run the container
+Run:
 
 ```sh
-# Create a directory on your host to persist the GitHub token and related data
-mkdir -p ./copilot-data
-
-# Run the container with a bind mount to persist the token
-# This ensures your authentication survives container restarts
-
-docker run -p 4141:4141 -v $(pwd)/copilot-data:/root/.local/share/copilot-api copilot-api
+./run
 ```
 
-> **Note:**
-> The GitHub token and related data will be stored in `copilot-data` on your host. This is mapped to `/root/.local/share/copilot-api` inside the container, ensuring persistence across restarts.
-
-### Docker with Environment Variables
-
-You can pass the GitHub token directly to the container using environment variables:
+The `./run` script will automatically build if needed, then start the server. Any flags are passed through to the server:
 
 ```sh
-# Build with GitHub token
-docker build --build-arg GH_TOKEN=your_github_token_here -t copilot-api .
-
-# Run with GitHub token
-docker run -p 4141:4141 -e GH_TOKEN=your_github_token_here copilot-api
-
-# Run with additional options
-docker run -p 4141:4141 -e GH_TOKEN=your_token copilot-api start --verbose --port 4141
+./run --port 8080 --verbose
 ```
 
-### Docker Compose Example
-
-```yaml
-version: "3.8"
-services:
-  copilot-api:
-    build: .
-    ports:
-      - "4141:4141"
-    environment:
-      - GH_TOKEN=your_github_token_here
-    restart: unless-stopped
-```
-
-The Docker image includes:
-
-- Multi-stage build for optimized image size
-- Non-root user for enhanced security
-- Health check for container monitoring
-- Pinned base image version for reproducible builds
-
-## Using with npx
-
-You can run the project directly using npx:
+## Manual Build & Run
 
 ```sh
-npx copilot-api@latest start
+# Build release binary
+cargo build --release
+
+# Run it
+./target/release/copilot-api start
 ```
 
-With options:
+## Development
 
 ```sh
-npx copilot-api@latest start --port 8080
-```
-
-For authentication only:
-
-```sh
-npx copilot-api@latest auth
+cargo run -- start
 ```
 
 ## Command Structure
@@ -147,35 +96,7 @@ Copilot API now uses a subcommand structure with these main commands:
 
 ## Command Line Options
 
-### Start Command Options
-
-The following command line options are available for the `start` command:
-
-| Option         | Description                                                                   | Default    | Alias |
-| -------------- | ----------------------------------------------------------------------------- | ---------- | ----- |
-| --port         | Port to listen on                                                             | 4141       | -p    |
-| --verbose      | Enable verbose logging                                                        | false      | -v    |
-| --account-type | Account type to use (individual, business, enterprise)                        | individual | -a    |
-| --manual       | Enable manual request approval                                                | false      | none  |
-| --rate-limit   | Rate limit in seconds between requests                                        | none       | -r    |
-| --wait         | Wait instead of error when rate limit is hit                                  | false      | -w    |
-| --github-token | Provide GitHub token directly (must be generated using the `auth` subcommand) | none       | -g    |
-| --claude-code  | Generate a command to launch Claude Code with Copilot API config              | false      | -c    |
-| --show-token   | Show GitHub and Copilot tokens on fetch and refresh                           | false      | none  |
-| --proxy-env    | Initialize proxy from environment variables                                   | false      | none  |
-
-### Auth Command Options
-
-| Option       | Description               | Default | Alias |
-| ------------ | ------------------------- | ------- | ----- |
-| --verbose    | Enable verbose logging    | false   | -v    |
-| --show-token | Show GitHub token on auth | false   | none  |
-
-### Debug Command Options
-
-| Option | Description               | Default | Alias |
-| ------ | ------------------------- | ------- | ----- |
-| --json | Output debug info as JSON | false   | none  |
+Run `./target/release/copilot-api start --help` to see all available options.
 
 ## API Endpoints
 
@@ -211,59 +132,33 @@ New endpoints for monitoring your Copilot usage and quotas.
 
 ## Example Usage
 
-Using with npx:
-
 ```sh
-# Basic usage with start command
-npx copilot-api@latest start
+# Basic usage
+./run
 
 # Run on custom port with verbose logging
-npx copilot-api@latest start --port 8080 --verbose
+./run --port 8080 --verbose
 
 # Use with a business plan GitHub account
-npx copilot-api@latest start --account-type business
-
-# Use with an enterprise plan GitHub account
-npx copilot-api@latest start --account-type enterprise
-
-# Enable manual approval for each request
-npx copilot-api@latest start --manual
+./run --account-type business
 
 # Set rate limit to 30 seconds between requests
-npx copilot-api@latest start --rate-limit 30
+./run --rate-limit 30
 
 # Wait instead of error when rate limit is hit
-npx copilot-api@latest start --rate-limit 30 --wait
+./run --rate-limit 30 --wait
 
 # Provide GitHub token directly
-npx copilot-api@latest start --github-token ghp_YOUR_TOKEN_HERE
-
-# Run only the auth flow
-npx copilot-api@latest auth
-
-# Run auth flow with verbose logging
-npx copilot-api@latest auth --verbose
-
-# Show your Copilot usage/quota in the terminal (no server needed)
-npx copilot-api@latest check-usage
-
-# Display debug information for troubleshooting
-npx copilot-api@latest debug
-
-# Display debug information in JSON format
-npx copilot-api@latest debug --json
-
-# Initialize proxy from environment variables (HTTP_PROXY, HTTPS_PROXY, etc.)
-npx copilot-api@latest start --proxy-env
+./run --github-token ghp_YOUR_TOKEN_HERE
 ```
 
 ## Using the Usage Viewer
 
 After starting the server, a URL to the Copilot Usage Dashboard will be displayed in your console. This dashboard is a web interface for monitoring your API usage.
 
-1.  Start the server. For example, using npx:
+1.  Start the server:
     ```sh
-    npx copilot-api@latest start
+    ./run
     ```
 2.  The server will output a URL to the usage viewer. Copy and paste this URL into your browser. It will look something like this:
     `https://ericc-ch.github.io/copilot-api?endpoint=http://localhost:4141/usage`
@@ -286,10 +181,10 @@ There are two ways to configure Claude Code to use this proxy:
 
 ### Interactive Setup with `--claude-code` flag
 
-To get started, run the `start` command with the `--claude-code` flag:
+To get started, run with the `--claude-code` flag:
 
 ```sh
-npx copilot-api@latest start --claude-code
+./run --claude-code
 ```
 
 You will be prompted to select a primary model and a "small, fast" model for background tasks. After selecting the models, a command will be copied to your clipboard. This command sets the necessary environment variables for Claude Code to use the proxy.
@@ -326,26 +221,10 @@ You can find more options here: [Claude Code settings](https://docs.anthropic.co
 
 You can also read more about IDE integration here: [Add Claude Code to your IDE](https://docs.anthropic.com/en/docs/claude-code/ide-integrations)
 
-## Running from Source
-
-The project can be run from source in several ways:
-
-### Development Mode
-
-```sh
-bun run dev
-```
-
-### Production Mode
-
-```sh
-bun run start
-```
-
 ## Usage Tips
 
 - To avoid hitting GitHub Copilot's rate limits, you can use the following flags:
   - `--manual`: Enables manual approval for each request, giving you full control over when requests are sent.
-  - `--rate-limit <seconds>`: Enforces a minimum time interval between requests. For example, `copilot-api start --rate-limit 30` will ensure there's at least a 30-second gap between requests.
+  - `--rate-limit <seconds>`: Enforces a minimum time interval between requests. For example, `./run --rate-limit 30` will ensure there's at least a 30-second gap between requests.
   - `--wait`: Use this with `--rate-limit`. It makes the server wait for the cooldown period to end instead of rejecting the request with an error. This is useful for clients that don't automatically retry on rate limit errors.
 - If you have a GitHub business or enterprise plan account with Copilot, use the `--account-type` flag (e.g., `--account-type business`). See the [official documentation](https://docs.github.com/en/enterprise-cloud@latest/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-access-to-github-copilot-in-your-organization/managing-github-copilot-access-to-your-organizations-network#configuring-copilot-subscription-based-network-routing-for-your-enterprise-or-organization) for more details.
