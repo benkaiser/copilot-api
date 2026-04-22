@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::openai_types::ModelsResponse;
 
@@ -16,6 +16,8 @@ pub struct AppState {
     pub manual_approve: bool,
     pub last_request_timestamp: RwLock<Option<u64>>,
     pub http_client: reqwest::Client,
+    /// Lock to coordinate concurrent token refreshes (prevents thundering herd)
+    pub token_refresh_lock: Mutex<()>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -34,6 +36,7 @@ impl AppState {
             manual_approve: false,
             last_request_timestamp: RwLock::new(None),
             http_client: reqwest::Client::new(),
+            token_refresh_lock: Mutex::new(()),
         }
     }
 }

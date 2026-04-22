@@ -146,3 +146,44 @@ pub async fn setup_copilot_token(state: &Arc<AppState>) -> Result<()> {
 
     Ok(())
 }
+
+/// Reactively refresh the Copilot token when a 401 is received.
+/// Uses a lock to prevent thundering-herd: if multiple requests hit 401
+/// simultaneously, only one will actually refresh while others wait and
+/// get the new token.
+pub async fn refresh_copilot_token(state: &Arc<AppState>, stale_token: &str) -> Result<String> {
+    let _guard = state.token_refresh_lock.lock().await;
+
+    // Check if another caller already refreshed while we waited for the lock
+    let current_token = state.copilot_token.read().await.clone();
+    if let Some(ref current) = current_token {
+        if current != stale_token {
+            tracing::info!("Copilot token already refreshed by another request");
+            return Ok(current.clone());
+        }
+    }
+
+    tracing::info!("Refreshing Copilot token due to 401 response...");
+
+    let github_token = state
+        .github_token
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("GitHub token not set"))?;
+    let vs_code_version = state
+        .vs_code_version
+        .read()
+        .await
+        .clone()
+        .unwrap_or_else(|| VSCODE_VERSION_FALLBACK.to_string());
+
+    let token_response =
+        github::get_copilot_token(&state.http_client, &github_token, &vs_code_version).await?;
+
+    let new_token = token_response.token.clone();
+    *state.copilot_token.write().await = Some(token_response.token);
+    tracing::info!("Copilot token refreshed successfully after 401");
+
+    Ok(new_token)
+}

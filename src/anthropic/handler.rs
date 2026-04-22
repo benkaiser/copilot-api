@@ -8,6 +8,7 @@ use crate::anthropic::stream::{format_sse_event, translate_chunk_to_anthropic_ev
 use crate::anthropic::translate_request::translate_to_openai;
 use crate::anthropic::translate_response::translate_to_anthropic;
 use crate::anthropic::types::AnthropicMessagesPayload;
+use crate::auth::token::refresh_copilot_token;
 use crate::config::{copilot_base_url, copilot_headers, VSCODE_VERSION_FALLBACK};
 use crate::error::{forward_error, AppError};
 use crate::openai_types::{ChatCompletionChunk, ChatCompletionResponse, ContentPart, MessageContent};
@@ -108,9 +109,36 @@ pub async fn handle_messages(
 
     let response = request.send().await?;
 
-    if !response.status().is_success() {
+    // On 401, refresh the token and retry once
+    let response = if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        tracing::warn!("Got 401 from upstream (anthropic), attempting token refresh and retry");
+        match refresh_copilot_token(&state, &copilot_token).await {
+            Ok(new_token) => {
+                let mut retry_headers = copilot_headers(&new_token, &vs_code_version, vision);
+                retry_headers.push(("X-Initiator".to_string(), initiator.to_string()));
+
+                let mut retry_request = state.http_client.post(&url);
+                for (key, value) in &retry_headers {
+                    retry_request = retry_request.header(key, value);
+                }
+                retry_request = retry_request.json(&openai_payload);
+
+                let retry_response = retry_request.send().await?;
+                if !retry_response.status().is_success() {
+                    return Err(forward_error(retry_response).await);
+                }
+                retry_response
+            }
+            Err(e) => {
+                tracing::error!("Failed to refresh token on 401: {}", e);
+                return Err(forward_error(response).await);
+            }
+        }
+    } else if !response.status().is_success() {
         return Err(forward_error(response).await);
-    }
+    } else {
+        response
+    };
 
     if is_stream {
         // Streaming: translate OpenAI SSE → Anthropic SSE
