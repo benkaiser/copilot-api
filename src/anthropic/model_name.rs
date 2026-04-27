@@ -1,6 +1,8 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
+use crate::openai_types::ModelsResponse;
+
 static MODEL_VERSION_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(claude-(?:sonnet|opus)-4-)(\d{1,2})(.*)$").unwrap()
 });
@@ -36,6 +38,25 @@ pub fn translate_model_name(model: &str) -> String {
     model.to_string()
 }
 
+/// Resolve a translated model name against the available models list.
+/// If the exact model isn't available, tries common suffixes like `-internal`.
+/// Falls back to the original name if no match is found.
+pub fn resolve_model_name(model: &str, models: &ModelsResponse) -> String {
+    // Exact match — no change needed
+    if models.data.iter().any(|m| m.id == model) {
+        return model.to_string();
+    }
+
+    // Try with `-internal` suffix (e.g. claude-opus-4.7-1m → claude-opus-4.7-1m-internal)
+    let with_internal = format!("{}-internal", model);
+    if models.data.iter().any(|m| m.id == with_internal) {
+        return with_internal;
+    }
+
+    // No match found, return original and let the upstream API error
+    model.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,5 +70,39 @@ mod tests {
         assert_eq!(translate_model_name("claude-opus-4-20250514"), "claude-opus-4");
         assert_eq!(translate_model_name("gpt-4o"), "gpt-4o");
         assert_eq!(translate_model_name("claude-3-5-sonnet"), "claude-3-5-sonnet");
+    }
+
+    fn make_models(ids: &[&str]) -> ModelsResponse {
+        use crate::openai_types::Model;
+        ModelsResponse {
+            data: ids.iter().map(|id| Model {
+                id: id.to_string(),
+                object: None,
+                created: None,
+                owned_by: None,
+                capabilities: None,
+            }).collect(),
+            object: None,
+        }
+    }
+
+    #[test]
+    fn test_resolve_model_name_exact_match() {
+        let models = make_models(&["claude-opus-4.7", "claude-opus-4.7-1m-internal"]);
+        assert_eq!(resolve_model_name("claude-opus-4.7", &models), "claude-opus-4.7");
+    }
+
+    #[test]
+    fn test_resolve_model_name_internal_fallback() {
+        let models = make_models(&["claude-opus-4.7", "claude-opus-4.7-1m-internal"]);
+        // claude-opus-4.7-1m doesn't exist, but claude-opus-4.7-1m-internal does
+        assert_eq!(resolve_model_name("claude-opus-4.7-1m", &models), "claude-opus-4.7-1m-internal");
+    }
+
+    #[test]
+    fn test_resolve_model_name_no_match() {
+        let models = make_models(&["claude-opus-4.7", "claude-opus-4.7-1m-internal"]);
+        // Unknown model passes through unchanged
+        assert_eq!(resolve_model_name("gpt-4o", &models), "gpt-4o");
     }
 }

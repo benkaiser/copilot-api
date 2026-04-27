@@ -4,6 +4,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use futures::StreamExt;
 
+use crate::anthropic::model_name::resolve_model_name;
 use crate::anthropic::stream::{format_sse_event, translate_chunk_to_anthropic_events, StreamState};
 use crate::anthropic::translate_request::translate_to_openai;
 use crate::anthropic::translate_response::translate_to_anthropic;
@@ -58,6 +59,20 @@ pub async fn handle_messages(
 
     // Translate Anthropic → OpenAI
     let mut openai_payload = translate_to_openai(&payload);
+
+    // Resolve model name against available models
+    if let Some(models) = state.models.read().await.as_ref() {
+        let resolved = resolve_model_name(&openai_payload.model, models);
+        if resolved != openai_payload.model {
+            tracing::info!(
+                "Resolved model {} → {}",
+                openai_payload.model,
+                resolved
+            );
+            openai_payload.model = resolved;
+        }
+    }
+
     tracing::info!(
         "Anthropic model {} → OpenAI model {}",
         original_model,

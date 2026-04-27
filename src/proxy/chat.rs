@@ -4,6 +4,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use futures::StreamExt;
 
+use crate::anthropic::model_name::resolve_model_name;
 use crate::auth::token::refresh_copilot_token;
 use crate::config::{copilot_base_url, copilot_headers, VSCODE_VERSION_FALLBACK};
 use crate::error::{forward_error, AppError};
@@ -38,6 +39,15 @@ pub async fn handle_chat_completions(
     axum::Json(mut payload): axum::Json<ChatCompletionsPayload>,
 ) -> Result<Response, AppError> {
     check_rate_limit(&state).await?;
+
+    // Resolve model name against available models
+    if let Some(models) = state.models.read().await.as_ref() {
+        let resolved = resolve_model_name(&payload.model, models);
+        if resolved != payload.model {
+            tracing::info!("Resolved model {} → {}", payload.model, resolved);
+            payload.model = resolved;
+        }
+    }
 
     let copilot_token = state
         .copilot_token
